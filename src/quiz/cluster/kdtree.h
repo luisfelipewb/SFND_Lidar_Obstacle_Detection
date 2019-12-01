@@ -81,7 +81,6 @@ struct KdTree
 		std::vector<int> ids;
 
 		recursiveSearch(target, root, 0, distanceTol, ids);
-		//printKDTree(root, 1);
 
 		return ids;
 	}
