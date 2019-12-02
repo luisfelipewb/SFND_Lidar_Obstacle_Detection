@@ -88,6 +88,29 @@ void cityBlock(pcl::visualization::PCLVisualizer::Ptr& viewer)
 
   pcl::PointCloud<pcl::PointXYZI>::Ptr filteredCloud = pointProcessorI->FilterCloud(inputCloud, 0.1f, Eigen::Vector4f (-20, -5, -2, 1), Eigen::Vector4f (40, 7, 5, 1) );
 
+  std::cout << "Number of points after filtering: " << filteredCloud->width *filteredCloud->height << std::endl;
+
+  renderPointCloud(viewer,filteredCloud,"filteredCloud");
+
+  std::pair<pcl::PointCloud<pcl::PointXYZI>::Ptr, pcl::PointCloud<pcl::PointXYZI>::Ptr> segmentCloud = pointProcessorI->SegmentPlane(filteredCloud, 100, 0.2);
+  //renderPointCloud(viewer, segmentCloud.first, "obstaclesCloud", Color(1,0,0));
+  //renderPointCloud(viewer, segmentCloud.second, "roadCloud", Color(0,1,0));
+
+  std::vector<typename pcl::PointCloud<pcl::PointXYZI>::Ptr> clusters = pointProcessorI->Clustering(segmentCloud.first, 0.5, 50, 1500);
+
+  int clusterId = 0;
+  std::vector<Color> colors = {Color(1,0,0), Color(0,1,0), Color(0,0,1)};
+  for (pcl::PointCloud<pcl::PointXYZI>::Ptr cluster: clusters){
+    std::cout << "cluster size :";
+    pointProcessorI->numPoints(cluster);
+    renderPointCloud(viewer, cluster, "obstacle"+std::to_string(clusterId), colors[clusterId%colors.size()]);
+
+    Box box = pointProcessorI->BoundingBox(cluster);
+    renderBox(viewer, box, clusterId);
+
+    ++clusterId;
+  }
+
   // Car box
   Box box;
   box.x_min = -1.8;
@@ -96,7 +119,7 @@ void cityBlock(pcl::visualization::PCLVisualizer::Ptr& viewer)
   box.x_max = 2.8;
   box.y_max = 1.8;
   box.z_max = 0;
-  renderBox(viewer, box, 1);
+  //renderBox(viewer, box, clusterId++);
   // Road box
   Box box2;
   box2.x_min = -20;
@@ -106,11 +129,6 @@ void cityBlock(pcl::visualization::PCLVisualizer::Ptr& viewer)
   box2.y_max = 7;
   box2.z_max = 5;
   //renderBox(viewer, box2, 2);
-
-
-  std::cout << "Number of points after filtering: " << filteredCloud->width *filteredCloud->height << std::endl;
-
-  renderPointCloud(viewer,filteredCloud,"inputCloud");
 }
 
 
