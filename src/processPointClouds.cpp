@@ -127,70 +127,59 @@ std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT
 template<typename PointT>
 std::unordered_set<int> ProcessPointClouds<PointT>::RansacPlane(typename pcl::PointCloud<PointT>::Ptr cloud, int maxIterations, float distanceTol)
 {
-	std::unordered_set<int> inliersResult;
-	srand(time(NULL));
+  std::unordered_set<int> inliersResult;
+  srand(time(NULL));
 
-	while(maxIterations--)
-	{
-		std::unordered_set<int> inliersCandidate;
+  while (maxIterations--) {
 
-		while (inliersCandidate.size() < 3)
-		{
-			int randomIndex = rand() % cloud->points.size();
-			inliersCandidate.insert(randomIndex);
-		}
+    std::unordered_set<int> inliersCandidate;
 
-		auto iterator = inliersCandidate.begin();
-		float x1 = cloud->points[*iterator].x;
-		float y1 = cloud->points[*iterator].y;
-		float z1 = cloud->points[*iterator].z;
-		iterator++;
-		float x2 = cloud->points[*iterator].x;
-		float y2 = cloud->points[*iterator].y;
-		float z2 = cloud->points[*iterator].z;
-		iterator++;
-		float x3 = cloud->points[*iterator].x;
-		float y3 = cloud->points[*iterator].x;
-		float z3 = cloud->points[*iterator].x;
+    // select three random points to create a plane
+    while (inliersCandidate.size() < 3)
+    {
+      int randomIndex = rand() % cloud->points.size();
+      inliersCandidate.insert(randomIndex);
+    }
 
-		float v1x = x2-x1;
-		float v1y = y2-y1;
-		float v1z = z2-z1;
+    float x1, y1, z1, x2, y2, z2, x3, y3, z3;
+    auto iterator = inliersCandidate.begin();
+    x1 = cloud->points[*iterator].x;
+    y1 = cloud->points[*iterator].y;
+    z1 = cloud->points[*iterator].z;
+    iterator++;
+    x2 = cloud->points[*iterator].x;
+    y2 = cloud->points[*iterator].y;
+    z2 = cloud->points[*iterator].z;
+    iterator++;
+    x3 = cloud->points[*iterator].x;
+    y3 = cloud->points[*iterator].y;
+    z3 = cloud->points[*iterator].z;
 
-		float v2x = x3-x1;
-		float v2y = y3-y1;
-		float v2z = z3-z1;
+    // calculate plane equation
+    float a = (y2 - y1)*(z3 - z1) - (z2 - z1)*(y3 - y1);
+    float b = (z2 - z1)*(x3 - x1) - (x2 - x1)*(z3 - z1);
+    float c = (x2 - x1)*(y3 - y1) - (y2 - y1)*(x3 - x1);
+    float d = -1 * (a*x1 + b*y1 + c*z1);
 
-		float nvx = v1y*v2z - v1z*v2y;
-		float nvy = v1z*v2x - v1x*v2z;
-		float nvz = v1x*v2y - v1y*v2x;
+    // select all points within the distance toleration from the plane
+    for (int index=0; index < cloud->points.size(); index++)
+    {
+      float px, py, pz;
+      px = cloud->points[index].x;
+      py = cloud->points[index].y;
+      pz = cloud->points[index].z;
 
-		float a = nvx;
-		float b = nvy;
-		float c = nvz;
-		float d = -(a*x1 + b*x2 + c*x3);
+      float dist = fabs(a*px + b*py +  c*pz + d)/sqrtf(a*a+b*b+c*c);
 
-		for (int index=0; index < cloud->points.size(); index++){
+      if (dist < distanceTol)
+        inliersCandidate.insert(index);
+    }
 
-			if(inliersCandidate.count(index))
-				continue;
+    if (inliersCandidate.size() > inliersResult.size())
+      inliersResult = inliersCandidate;
 
-			float px = cloud->points[index].x;
-			float py = cloud->points[index].y;
-			float pz = cloud->points[index].z;
-
-			float dist = (a*px + b*py +  c*pz - d)/sqrt(a*a+b*b+c*c);
-
-			if (fabs(dist) < distanceTol){
-				inliersCandidate.insert(index);
-			}
-
-		if(inliersCandidate.size() > inliersResult.size())
-			inliersResult = inliersCandidate;
-		}
-	}
-
-	return inliersResult;
+  }
+  return inliersResult;
 }
 
 
@@ -201,13 +190,11 @@ std::pair<typename pcl::PointCloud<PointT>::Ptr, typename pcl::PointCloud<PointT
   // Time segmentation process
   auto startTime = std::chrono::steady_clock::now();
   // pcl::PointIndices::Ptr inliers;
-  std::unordered_set<int> inliersP = RansacPlane(cloud, maxIterations, distanceThreshold);
+  std::unordered_set<int> inliersSet = RansacPlane(cloud, maxIterations, distanceThreshold);
 
-  pcl::PointIndices::Ptr inliers {new pcl::PointIndices};
-  for (auto itr = inliersP.begin(); itr!=inliersP.end(); ++itr)
-  {
-      inliers->indices.push_back(*itr);
-  }
+  pcl::PointIndices::Ptr inliers (new pcl::PointIndices ());
+  for (int index : inliersSet)
+      inliers->indices.push_back(index);
 
   auto endTime = std::chrono::steady_clock::now();
   auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
