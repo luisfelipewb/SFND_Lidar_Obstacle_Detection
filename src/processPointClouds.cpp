@@ -248,6 +248,20 @@ std::vector<typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::C
     return clusters;
 }
 
+template<typename PointT>
+void ProcessPointClouds<PointT>::recursiveClustering(int index, std::vector<int>& cluster, std::vector<bool>& processed, const std::vector<std::vector<float>>& points, KdTree* tree, float distanceTol)
+{
+	processed[index] = true;
+	cluster.push_back(index);
+
+	std::vector<int> nearby = tree->search(points[index],distanceTol);
+
+	for(int id : nearby)
+		if(!processed[id])
+			recursiveClustering(id, cluster, processed, points, tree, distanceTol);
+
+}
+
 
 template<typename PointT>
 std::vector<typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::NewClustering(typename pcl::PointCloud<PointT>::Ptr cloud, float clusterTolerance, int minSize, int maxSize)
@@ -256,26 +270,39 @@ std::vector<typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::N
     // Time clustering process
     auto startTime = std::chrono::steady_clock::now();
 
+    // get points form cloud and insert into KD tree structure
+    KdTree* tree = new KdTree;
+    std::vector<std::vector<float>> points;
+    //std::vector<pcl::PointT> cloud_data = cloud->points;
+
+    typename pcl::PointCloud<PointT>::iterator point_it;
+    int i = 0;
+    for (point_it = cloud->points.begin(); point_it < cloud->points.end(); point_it++)
+    {
+      points.push_back({point_it->x,point_it->y});
+      tree->insert(points[i],i);
+      i++;
+    }
+
+    // Execute recursive Clustering
+    std::vector<std::vector<int>> point_clusters;
+    std::vector<bool> processed(points.size(), false);
+
+    for (int id=0; id<points.size(); id++){
+      if (!processed[id]){
+        std::vector<int> point_cluster;
+        recursiveClustering(id, point_cluster, processed, points, tree, clusterTolerance);
+        point_clusters.push_back(point_cluster);
+      }
+    }
+
+    // Create cloud clusters based on cluster indices
     std::vector<typename pcl::PointCloud<PointT>::Ptr> clusters;
 
-    // TODO:: Fill in the function to perform euclidean clustering to group detected obstacles
-    // Creating the KdTree object for the search method of the extraction
-    typename pcl::search::KdTree<PointT>::Ptr tree (new pcl::search::KdTree<PointT>);
-    tree->setInputCloud (cloud);
-
-    std::vector<pcl::PointIndices> clusterIndices;
-    pcl::EuclideanClusterExtraction<PointT> ec;
-    ec.setClusterTolerance (clusterTolerance);
-    ec.setMinClusterSize (minSize);
-    ec.setMaxClusterSize (maxSize);
-    ec.setSearchMethod (tree);
-    ec.setInputCloud (cloud);
-    ec.extract (clusterIndices);
-
-    for (pcl::PointIndices getIndices: clusterIndices){
+    for (std::vector<int> getIndices: point_clusters){
       typename pcl::PointCloud<PointT>::Ptr cloudCluster (new pcl::PointCloud<PointT>);
 
-      for (int index: getIndices.indices)
+      for (int index: getIndices)
         cloudCluster->points.push_back (cloud->points[index]);
 
       cloudCluster->width = cloudCluster->points.size ();
