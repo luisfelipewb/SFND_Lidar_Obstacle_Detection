@@ -279,7 +279,7 @@ std::vector<typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::N
     int i = 0;
     for (point_it = cloud->points.begin(); point_it < cloud->points.end(); point_it++)
     {
-      points.push_back({point_it->x,point_it->y});
+      points.push_back({point_it->x,point_it->y,point_it->z});
       tree->insert(points[i],i);
       i++;
     }
@@ -292,7 +292,8 @@ std::vector<typename pcl::PointCloud<PointT>::Ptr> ProcessPointClouds<PointT>::N
       if (!processed[id]){
         std::vector<int> point_cluster;
         recursiveClustering(id, point_cluster, processed, points, tree, clusterTolerance);
-        point_clusters.push_back(point_cluster);
+          if (point_cluster.size() > minSize)
+            point_clusters.push_back(point_cluster);
       }
     }
 
