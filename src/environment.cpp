@@ -95,6 +95,8 @@ void cityBlock(pcl::visualization::PCLVisualizer::Ptr& viewer, ProcessPointCloud
   std::pair<pcl::PointCloud<pcl::PointXYZI>::Ptr, pcl::PointCloud<pcl::PointXYZI>::Ptr> segmentCloud = pointProcessorI->NewSegmentPlane(filteredCloud, 100, 0.2);
   //renderPointCloud(viewer, segmentCloud.first, "obstaclesCloud", Color(1,0,0));
   //renderPointCloud(viewer, segmentCloud.second, "roadCloud", Color(0,1,0));
+  //std::cout << "Number of obstacle points: " << segmentCloud.first->size() << std::endl;
+  //std::cout << "Number of plane points: " << segmentCloud.second->size() << std::endl;
 
   std::vector<typename pcl::PointCloud<pcl::PointXYZI>::Ptr> clusters = pointProcessorI->NewClustering(segmentCloud.first, 0.4, 25, 2000);
 
