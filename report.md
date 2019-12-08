@@ -8,6 +8,7 @@
 [gif_result]: ./media/result.gif
 [gif_data2]: ./media/data2.gif
 [gif_data2_result]: ./media/data2_result.gif
+[gif_data2_bonus]: ./media/data2_bonus.gif
 [img_performance]: ./media/performance.png
 [img_3dtree]: ./media/3dtree.png
 [gif_KDTree-animation]: ./media/KDTree-animation.gif
@@ -257,9 +258,52 @@ Naturally, the next step would be to track the detected objects and follow them 
 ## Bonus
 
 In the example data below, processing the data is more challenging. The car is taking turns and the types of obstacles are more diverse.
-It is possible to visualize a cyclist that is correctly detected a couple of meters in front of the car. The bounding box has fixed X and Y orientation since it is using the same reference as the sensor. One possible improvement is to rotate the box around the Z-axis to have a more realistic representation of the obstacle.
+It is possible to visualize a cyclist that is correctly detected a couple of meters in front of the car. Originally, the bounding box has fixed X, Y and Z orientation using the same coordinate reference as the sensor. The main disadvantage is that the resulting bounding box can be a unnecessarily large and constrain the available space perceived by the car.
 
+Using a statistical procedure known as Principal Component Analysis, it is possible to find a minimum oriented bounding box. The code bellow to calculate the bounding box is based on this blog post: http://codextechnicanum.blogspot.com/2015/04/find-minimum-oriented-bounding-box-of.html
 
+```cpp
+template<typename PointT>
+BoxQ ProcessPointClouds<PointT>::BoundingBoxQ(typename pcl::PointCloud<PointT>::Ptr cluster)
+{
+    // Compute principal directions
+    Eigen::Vector4f pcaCentroid;
+    pcl::compute3DCentroid(*cluster, pcaCentroid);
+    Eigen::Matrix3f covariance;
+    pcl::computeCovarianceMatrixNormalized(*cluster, pcaCentroid, covariance);
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eigen_solver(covariance, Eigen::ComputeEigenvectors);
+    Eigen::Matrix3f eigenVectorsPCA = eigen_solver.eigenvectors();
+    eigenVectorsPCA.col(2) = eigenVectorsPCA.col(0).cross(eigenVectorsPCA.col(1));
+
+    //These eigenvectors are used to transform the point cloud to the origin point (0, 0, 0) such that the eigenvectors correspond to the axes of the space. The minimum point, maximum point, and the middle of the diagonal between these two points are calculated for the transformed cloud (also referred to as the projected cloud when using PCL's PCA interface, or reference cloud by Nicola).
+    // Transform the original cloud to the origin where the principal components correspond to the axes.
+    Eigen::Matrix4f projectionTransform(Eigen::Matrix4f::Identity());
+    projectionTransform.block<3,3>(0,0) = eigenVectorsPCA.transpose();
+    projectionTransform.block<3,1>(0,3) = -1.f * (projectionTransform.block<3,3>(0,0) * pcaCentroid.head<3>());
+    typename pcl::PointCloud<PointT>::Ptr cloudPointsProjected (new pcl::PointCloud<PointT>);
+    pcl::transformPointCloud(*cluster, *cloudPointsProjected, projectionTransform);
+    // Get the minimum and maximum points of the transformed cloud.
+    PointT minPoint, maxPoint;
+    pcl::getMinMax3D(*cloudPointsProjected, minPoint, maxPoint);
+    const Eigen::Vector3f meanDiagonal = 0.5f*(maxPoint.getVector3fMap() + minPoint.getVector3fMap());
+
+    // Find bounding box for one of the clusters
+    BoxQ box;
+    box.cube_length = maxPoint.x - minPoint.x;
+    box.cube_width = maxPoint.y - minPoint.y;
+    box.cube_height = maxPoint.z - minPoint.z;
+    box.bboxQuaternion = eigenVectorsPCA;
+    box.bboxTransform = eigenVectorsPCA * meanDiagonal + pcaCentroid.head<3>();
+
+    return box;
+}
+```
+
+##### Original PCL
 ![][gif_data2]
 
+##### Results
 ![][gif_data2_result]
+
+##### Results with rotating minimum bounding box
+![][gif_data2_bonus]
