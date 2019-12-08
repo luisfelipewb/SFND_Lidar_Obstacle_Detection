@@ -45,12 +45,12 @@ void simpleHighway(pcl::visualization::PCLVisualizer::Ptr& viewer)
     bool renderScene = false;
     std::vector<Car> cars = initHighway(renderScene, viewer);
 
-    // TODO:: Create lidar sensor
+    // Create lidar sensor
     Lidar * lidar = new Lidar(cars, 0);
     pcl::PointCloud<pcl::PointXYZ>::Ptr scanCloud = lidar->scan();
     //renderRays(viewer, lidar->position, scanCloud);
     renderPointCloud(viewer, scanCloud, "scanCloud");
-    // TODO:: Create point processor
+    // Create point processor
     ProcessPointClouds<pcl::PointXYZ>  pclProcessor;
     std::pair<pcl::PointCloud<pcl::PointXYZ>::Ptr, pcl::PointCloud<pcl::PointXYZ>::Ptr> segmentCloud = pclProcessor.SegmentPlane(scanCloud, 100, 0.2);
     //renderPointCloud(viewer, segmentCloud.first, "obstaclesCloud", Color(1,0,0));
@@ -61,7 +61,7 @@ void simpleHighway(pcl::visualization::PCLVisualizer::Ptr& viewer)
     int clusterId = 0;
     std::vector<Color> colors = {Color(1,0,0), Color(0,1,0), Color(0,0,1)};
     for (pcl::PointCloud<pcl::PointXYZ>::Ptr cluster: clusters){
-      std::cout << "cluster size :";
+      //std::cout << "cluster size :";
       pclProcessor.numPoints(cluster);
       renderPointCloud(viewer, cluster, "obstacle"+std::to_string(clusterId), colors[clusterId%colors.size()]);
 
@@ -80,31 +80,27 @@ void cityBlock(pcl::visualization::PCLVisualizer::Ptr& viewer, ProcessPointCloud
   // ----------------------------------------------------
   // -----Open 3D viewer and display City Block     -----
   // ----------------------------------------------------
-
-
-  std::cout << "Number of points before filtering: " << inputCloud->width *inputCloud->height << std::endl;
+  auto startTime = std::chrono::steady_clock::now();
 
   //renderPointCloud(viewer,inputCloud,"inputCloud");
 
   pcl::PointCloud<pcl::PointXYZI>::Ptr filteredCloud = pointProcessorI->FilterCloud(inputCloud, 0.1f, Eigen::Vector4f (-20, -5, -2, 1), Eigen::Vector4f (40, 7, 5, 1) );
 
-  std::cout << "Number of points after filtering: " << filteredCloud->width *filteredCloud->height << std::endl;
-
   //renderPointCloud(viewer,filteredCloud,"filteredCloud");
 
-  std::pair<pcl::PointCloud<pcl::PointXYZI>::Ptr, pcl::PointCloud<pcl::PointXYZI>::Ptr> segmentCloud = pointProcessorI->NewSegmentPlane(filteredCloud, 100, 0.2);
+  std::pair<pcl::PointCloud<pcl::PointXYZI>::Ptr, pcl::PointCloud<pcl::PointXYZI>::Ptr> segmentCloud = pointProcessorI->SegmentPlane(filteredCloud, 100, 0.2);
   //renderPointCloud(viewer, segmentCloud.first, "obstaclesCloud", Color(1,0,0));
   //renderPointCloud(viewer, segmentCloud.second, "roadCloud", Color(0,1,0));
   //std::cout << "Number of obstacle points: " << segmentCloud.first->size() << std::endl;
   //std::cout << "Number of plane points: " << segmentCloud.second->size() << std::endl;
 
-  std::vector<typename pcl::PointCloud<pcl::PointXYZI>::Ptr> clusters = pointProcessorI->NewClustering(segmentCloud.first, 0.4, 25, 2000);
+  std::vector<typename pcl::PointCloud<pcl::PointXYZI>::Ptr> clusters = pointProcessorI->Clustering(segmentCloud.first, 0.4, 25, 2000);
 
   int clusterId = 0;
   std::vector<Color> colors = {Color(1,0,0), Color(0,1,0), Color(0,0,1)};
   for (pcl::PointCloud<pcl::PointXYZI>::Ptr cluster: clusters){
-    std::cout << "cluster size :";
-    pointProcessorI->numPoints(cluster);
+    //std::cout << "cluster size :";
+    //pointProcessorI->numPoints(cluster);
     renderPointCloud(viewer, cluster, "obstacle"+std::to_string(clusterId), colors[clusterId%colors.size()]);
 
     Box box = pointProcessorI->BoundingBox(cluster);
@@ -130,6 +126,10 @@ void cityBlock(pcl::visualization::PCLVisualizer::Ptr& viewer, ProcessPointCloud
   box.y_max = 7;
   box.z_max = 5;
   //renderBox(viewer, box, ++clusterId);
+
+  auto endTime = std::chrono::steady_clock::now();
+  auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+  std::cout << elapsedTime.count() << " ms\t - total time" << std::endl;
 }
 
 
